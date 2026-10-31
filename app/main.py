@@ -1,0 +1,28 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
+
+from app.core.config import settings
+from app.core.middleware import CorrelationIdMiddleware
+from app.presentation.api.v1.router import api_router
+from app.infrastructure.persistence.database import init_db
+
+logging.basicConfig(level=settings.LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Iniciando Orchestrator Service...")
+    await init_db()
+    yield
+    logger.info("Deteniendo Orchestrator Service...")
+
+app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION, lifespan=lifespan)
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/health")
+async def root_health():
+    return {"status": "healthy", "service": settings.APP_NAME}
